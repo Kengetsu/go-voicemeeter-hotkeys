@@ -13,26 +13,46 @@ import (
 var volumeUpIncrement = 3.0
 var volumeDownIncrement = -3.0
 var voicemeeterWaitTime = 30 * time.Second
+var vm *voicemeeter.Remote
 
 func init() {
 	log.SetLevel(log.InfoLevel)
 }
 
 func main() {
+	var err error
+	vm, err = vmConnect()
+	if err != nil {
+		_ = toast.Push("Failed to connect to voice meeter. Voicemeeter Hotkey Closing.",
+			toast.WithTitle("Voicemeeter Hotkey"),
+			toast.WithAppID("Voicemeeter Hotkey"),
+			toast.WithAudio(toast.Default),
+			toast.WithLongDuration())
+		panic("Failed to connect to voice meeter.")
+	}
+
 	systray.Run(onReady, onExit)
 }
 
 func vmConnect() (*voicemeeter.Remote, error) {
-	vm, err := voicemeeter.NewRemote("potato", 0)
-	if err != nil {
-		return nil, err
+	for retry := 0; retry <= 3; retry++ {
+		var err error
+		if retry == 3 {
+			return nil, err
+		}
+		vm, err = voicemeeter.NewRemote("banana", 5)
+		err = vm.Login()
+		if err != nil {
+			_ = toast.Push("Failed to connect to voice meeter. Please make sure Voice Meeter is running.",
+				toast.WithTitle("Voicemeeter Hotkey"),
+				toast.WithAppID("Voicemeeter Hotkey"),
+				toast.WithAudio(toast.Default),
+				toast.WithShortDuration())
+			time.Sleep(voicemeeterWaitTime)
+			continue
+		}
+		break
 	}
-
-	err = vm.Login()
-	if err != nil {
-		return nil, err
-	}
-
 	return vm, nil
 }
 func onReady() {
@@ -42,44 +62,18 @@ func onReady() {
 	mQuit := systray.AddMenuItem("Quit", "Quit")
 
 	mQuit.SetIcon(icon.Data)
-	var vm *voicemeeter.Remote
-	for retry := 0; retry <= 3; retry++ {
-		if retry == 3 {
-			_ = toast.Push("Failed to connect to voice meeter. Voicemeeter Hotkey Closing.",
-				toast.WithTitle("Voicemeeter Hotkey"),
-				toast.WithAppID("Voicemeeter Hotkey"),
-				toast.WithAudio(toast.Default),
-				toast.WithLongDuration())
-			panic("Failed to connect to voice meeter.")
-		}
-		var err error
-		vm, err = vmConnect()
-		if err != nil {
-			time.Sleep(voicemeeterWaitTime)
-			_ = toast.Push("Failed to connect to voice meeter. Please make sure Voice Meeter is running.",
-				toast.WithTitle("Voicemeeter Hotkey"),
-				toast.WithAppID("Voicemeeter Hotkey"),
-				toast.WithAudio(toast.Default),
-				toast.WithLongDuration())
-			continue
-		}
-
-	}
 	go func() {
 		<-mQuit.ClickedCh
-		err := vm.Logout()
-		if err != nil {
-			return
-		}
 		systray.Quit()
 	}()
 	//fmt.Printf(vm.Type())
-	go registerHotkeys(vm)
+	go registerHotkeys()
 }
 func onExit() {
+	_ = vm.Logout()
 }
 
-func registerHotkeys(vm *voicemeeter.Remote) {
+func registerHotkeys() {
 	hkey := hotkey.New()
 	//Toggle Audio Input from bus 0 and 1
 	_, err := hkey.Register(hotkey.None, hotkey.F23, func() {
