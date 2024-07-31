@@ -1,16 +1,18 @@
 package main
 
 import (
-	"fmt"
 	"github.com/MakeNowJust/hotkey"
+	"github.com/electricbubble/go-toast"
 	"github.com/getlantern/systray"
 	"github.com/getlantern/systray/example/icon"
 	"github.com/onyx-and-iris/voicemeeter/v2"
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 var volumeUpIncrement = 3.0
 var volumeDownIncrement = -3.0
+var voicemeeterWaitTime = 30 * time.Second
 
 func init() {
 	log.SetLevel(log.InfoLevel)
@@ -40,10 +42,28 @@ func onReady() {
 	mQuit := systray.AddMenuItem("Quit", "Quit")
 
 	mQuit.SetIcon(icon.Data)
+	var vm *voicemeeter.Remote
+	for retry := 0; retry <= 3; retry++ {
+		if retry == 3 {
+			_ = toast.Push("Failed to connect to voice meeter. Voicemeeter Hotkey Closing.",
+				toast.WithTitle("Voicemeeter Hotkey"),
+				toast.WithAppID("Voicemeeter Hotkey"),
+				toast.WithAudio(toast.Default),
+				toast.WithLongDuration())
+			panic("Failed to connect to voice meeter.")
+		}
+		var err error
+		vm, err = vmConnect()
+		if err != nil {
+			time.Sleep(voicemeeterWaitTime)
+			_ = toast.Push("Failed to connect to voice meeter. Please make sure Voice Meeter is running.",
+				toast.WithTitle("Voicemeeter Hotkey"),
+				toast.WithAppID("Voicemeeter Hotkey"),
+				toast.WithAudio(toast.Default),
+				toast.WithLongDuration())
+			continue
+		}
 
-	vm, err := vmConnect()
-	if err != nil {
-		panic(err)
 	}
 	go func() {
 		<-mQuit.ClickedCh
@@ -53,7 +73,7 @@ func onReady() {
 		}
 		systray.Quit()
 	}()
-	fmt.Printf(vm.Type())
+	//fmt.Printf(vm.Type())
 	go registerHotkeys(vm)
 }
 func onExit() {
