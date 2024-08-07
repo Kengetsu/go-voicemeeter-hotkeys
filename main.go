@@ -10,9 +10,11 @@ import (
 	"time"
 )
 
-var volumeUpIncrement = 3.0
-var volumeDownIncrement = -3.0
-var voicemeeterWaitTime = 30 * time.Second
+const volumeUpIncrement = 3.0
+const volumeDownIncrement = -3.0
+const voicemeeterWaitTime = 30 * time.Second
+const applicationName = "Voicemeeter Hotkeys"
+
 var vm *voicemeeter.Remote
 
 func init() {
@@ -23,14 +25,9 @@ func main() {
 	var err error
 	vm, err = vmConnect()
 	if err != nil {
-		_ = toast.Push("Failed to connect to voice meeter. Voicemeeter Hotkey Closing.",
-			toast.WithTitle("Voicemeeter Hotkey"),
-			toast.WithAppID("Voicemeeter Hotkey"),
-			toast.WithAudio(toast.Default),
-			toast.WithLongDuration())
+		triggerNotification("Failed to connect to voice meeter. Voicemeeter Hotkey Closing.", "long")
 		panic("Failed to connect to voice meeter.")
 	}
-
 	systray.Run(onReady, onExit)
 }
 
@@ -43,11 +40,7 @@ func vmConnect() (*voicemeeter.Remote, error) {
 		vm, err = voicemeeter.NewRemote("banana", 5)
 		err = vm.Login()
 		if err != nil {
-			_ = toast.Push("Failed to connect to voice meeter. Please make sure Voice Meeter is running.",
-				toast.WithTitle("Voicemeeter Hotkey"),
-				toast.WithAppID("Voicemeeter Hotkey"),
-				toast.WithAudio(toast.Default),
-				toast.WithShortDuration())
+			triggerNotification("Failed to connect to voice meeter. Please make sure Voice Meeter is running.", "short")
 			time.Sleep(voicemeeterWaitTime)
 			continue
 		}
@@ -73,6 +66,14 @@ func onExit() {
 	_ = vm.Logout()
 }
 
+func triggerNotification(msg string, duration toast.NotificationDuration) {
+	_ = toast.Push(msg,
+		toast.WithTitle(applicationName),
+		toast.WithAppID(applicationName),
+		toast.WithAudio(toast.Default),
+		toast.WithDuration(duration))
+}
+
 func registerHotkeys() {
 	hkey := hotkey.New()
 	//Toggle Audio Input from bus 0 and 1
@@ -80,9 +81,11 @@ func registerHotkeys() {
 		//fmt.Printf("F23 Pressed")
 		primaryBusMuted := vm.Bus[0].Mute()
 		if primaryBusMuted {
+			triggerNotification("Headphone Output", "short")
 			vm.Bus[0].SetMute(false)
 			vm.Bus[1].SetMute(true)
 		} else {
+			triggerNotification("Speaker Output", "short")
 			vm.Bus[0].SetMute(true)
 			vm.Bus[1].SetMute(false)
 		}
